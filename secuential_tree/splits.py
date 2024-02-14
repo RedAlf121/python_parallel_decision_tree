@@ -17,7 +17,7 @@ def compute_split_values(x):
         return np.array([(uniques[i]+uniques[i+1])/2 for i in range(len(uniques)-1)])
 
 
-def compute_split_info(split_criterion, X, y, feature_id, split_value, n_leaf_min):
+def compute_split_info(split_criterion, x, y, feature_id, split_value, n_leaf_min):
     """
     Computes the gain measure for splitting the data with feature_id at split_value.
 
@@ -29,7 +29,7 @@ def compute_split_info(split_criterion, X, y, feature_id, split_value, n_leaf_mi
     :param n_leaf_min: <int> Minimum number of instances in a leaf
     :return: <tuple or None>
     """
-    y_left, y_right = split_target(X, y, feature_id, split_value)
+    y_left, y_right = split_target(x, y, feature_id, split_value)
 
     n_left, n_right = len(y_left), len(y_right)
     n_min = np.min([n_left, n_right])
@@ -41,7 +41,7 @@ def compute_split_info(split_criterion, X, y, feature_id, split_value, n_leaf_mi
     return gain, feature_id, split_value
 
 
-def split_target(X, y, feature_id, value):
+def split_target(x, y, feature_id, value):
     """
     Splits the data, no matter if it is categorical or numerical.
 
@@ -51,14 +51,14 @@ def split_target(X, y, feature_id, value):
     :param value: <float> The value for which the feature is going to be split
     :return: <tuple> (X_left, X_right, y_left, y_right)
     """
-    is_categorical = utils.categorical_data(X[:, feature_id])
+    is_categorical = utils.categorical_data(x[:, feature_id])
     if is_categorical:
-        return split_categorical_target(X, y, feature_id, value)
+        return split_categorical_target(x, y, feature_id, value)
     else:
-        return split_numerical_target(X, y, feature_id, value)
+        return split_numerical_target(x, y, feature_id, value)
 
 
-def split_categorical_data(X, y, feature_id, value):
+def split_categorical_data(x, y, feature_id, value):
     """
     Splits categorical data in the form
         - Left branch: Value
@@ -70,11 +70,11 @@ def split_categorical_data(X, y, feature_id, value):
     :param value: <float> The value for which the feature is going to be split
     :return: <tuple> (X_left, X_right, y_left, y_right)
     """
-    mask = X[:, feature_id] == value
-    return X[mask], X[~mask], y[mask], y[~mask]
+    mask = x[:, feature_id] == value
+    return x[mask], x[~mask], y[mask], y[~mask]
 
 
-def split_categorical_target(X, y, feature_id, value):
+def split_categorical_target(x, y, feature_id, value):
     """
     Splits categorical target in the form
         - Left branch: Value
@@ -86,11 +86,11 @@ def split_categorical_target(X, y, feature_id, value):
     :param value: <float> The value for which the feature is going to be split
     :return: <tuple> (X_left, X_right, y_left, y_right)
     """
-    mask = X[:, feature_id] == value
+    mask = x[:, feature_id] == value
     return y[mask], y[~mask]
 
 
-def split_numerical_data(X, y, feature_id, value):
+def split_numerical_data(x, y, feature_id, value):
     """
     Splits numerical data in the form
         - Left branch: <= Value
@@ -102,11 +102,11 @@ def split_numerical_data(X, y, feature_id, value):
     :param value: <float> The value for which the feature is going to be split
     :return: <tuple> (X_left, X_right, y_left, y_right)
     """
-    mask = X[:, feature_id] <= value
-    return X[mask], X[~mask], y[mask], y[~mask]
+    mask = x[:, feature_id] <= value
+    return x[mask], x[~mask], y[mask], y[~mask]
 
 
-def split_numerical_target(X, y, feature_id, value):
+def split_numerical_target(x, y, feature_id, value):
     """
     Splits numerical target in the form
         - Left branch: <= Value
@@ -118,7 +118,7 @@ def split_numerical_target(X, y, feature_id, value):
     :param value: <float> The value for which the feature is going to be split
     :return: <tuple> (X_left, X_right, y_left, y_right)
     """
-    mask = X[:, feature_id] <= value
+    mask = x[:, feature_id] <= value
     return y[mask], y[~mask]
 
 

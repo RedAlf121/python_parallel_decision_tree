@@ -1,20 +1,12 @@
 import numpy as np
-import proactive_forest.utils as utils
-from proactive_forest.tree import DecisionTree, DecisionLeaf, DecisionForkCategorical, DecisionForkNumerical
-from proactive_forest.splits import compute_split_info, split_categorical_data, split_numerical_data, Split, \
+import utils
+from tree import DecisionTree, DecisionLeaf, DecisionForkCategorical, DecisionForkNumerical
+from splits import compute_split_info, split_categorical_data, split_numerical_data, Split, \
     compute_split_values
 
 
 class TreeBuilder:
-    def __init__(self,
-                 max_depth=None,
-                 min_samples_split=2,
-                 min_samples_leaf=1,
-                 split_criterion=None,
-                 feature_selection=None,
-                 feature_prob=None,
-                 min_gain_split=0,
-                 split_chooser=None):
+    def __init__(self,max_depth=None,min_samples_split=2,min_samples_leaf=1,split_criterion=None,feature_selection=None,feature_prob=None,min_gain_split=0,split_chooser=None):
         """
         Creates a Decision Tree Builder.
 
@@ -142,7 +134,7 @@ class TreeBuilder:
     def feature_prob(self, feature_prob):
         self._feature_prob = feature_prob
 
-    def build_tree(self, X, y, n_classes):
+    def build_tree(self, x, y, n_classes):
         """
         Constructs a decision tree using the (X, y) as training set.
 
@@ -151,7 +143,7 @@ class TreeBuilder:
         :param n_classes: <int> Number of classes
         :return: <DecisionTree>
         """
-        n_samples, n_features = X.shape
+        _, n_features = x.shape
 
         if n_classes > 0:
             self._n_classes = n_classes
@@ -167,10 +159,10 @@ class TreeBuilder:
 
         tree = DecisionTree(n_features=n_features)
         tree.last_node_id = tree.root()
-        self._build_tree_recursive(tree, tree.last_node_id, X, y, depth=1)
+        self._build_tree_recursive(tree, tree.last_node_id, x, y, depth=1)
         return tree
 
-    def _build_tree_recursive(self, tree, cur_node, X, y, depth):
+    def _build_tree_recursive(self, tree, cur_node, x, y, depth):
         """
         Algorithm to build the decision tree in a recursive manner.
 
@@ -181,7 +173,7 @@ class TreeBuilder:
         :param depth: <int> Current depth of the tree
         :return: <int>
         """
-        n_samples, n_features = X.shape
+        n_samples, n_features = x.shape
         leaf_reached = False
 
         # Evaluates if all instances belong to the same class
@@ -198,7 +190,7 @@ class TreeBuilder:
 
         best_split = None
         if not leaf_reached:
-            best_split = self._find_split(X, y, n_features)
+            best_split = self._find_split(x, y, n_features)
             if best_split is None or best_split.gain < self._min_gain_split:
                 leaf_reached = True
 
@@ -209,35 +201,35 @@ class TreeBuilder:
             tree.nodes.append(new_leaf)
 
         else:
-            is_categorical = utils.categorical_data(X[:, best_split.feature_id])
+            is_categorical = utils.categorical_data(x[:, best_split.feature_id])
             samples = utils.bin_count(y, length=self._n_classes)
 
             if is_categorical:
                 new_fork = DecisionForkCategorical(samples=samples, depth=depth,
                                                    feature_id=best_split.feature_id, value=best_split.value,
                                                    gain=best_split.gain)
-                X_left, X_right, y_left, y_right = split_categorical_data(X, y, best_split.feature_id, best_split.value)
+                x_left, y_right, y_left, y_right = split_categorical_data(x, y, best_split.feature_id, best_split.value)
 
             else:
                 new_fork = DecisionForkNumerical(samples=samples, depth=depth,
                                                  feature_id=best_split.feature_id, value=best_split.value,
                                                  gain=best_split.gain)
-                X_left, X_right, y_left, y_right = split_numerical_data(X, y, best_split.feature_id, best_split.value)
+                x_left, y_right, y_left, y_right = split_numerical_data(x, y, best_split.feature_id, best_split.value)
 
             tree.nodes.append(new_fork)
             tree.last_node_id += 1
             node_to_split = tree.last_node_id
-            new_branch = self._build_tree_recursive(tree, node_to_split, X_left, y_left, depth=depth+1)
+            new_branch = self._build_tree_recursive(tree, node_to_split, x_left, y_left, depth=depth+1)
             tree.nodes[cur_node].left_branch = new_branch
 
             tree.last_node_id += 1
             node_to_split = tree.last_node_id
-            new_branch = self._build_tree_recursive(tree, node_to_split, X_right, y_right, depth=depth+1)
+            new_branch = self._build_tree_recursive(tree, node_to_split, y_right, y_right, depth=depth+1)
             tree.nodes[cur_node].right_branch = new_branch
 
         return cur_node
 
-    def _find_split(self, X, y, n_features):
+    def _find_split(self, x, y, n_features):
         """
         Computes all possible split and selects the split according to the criterion.
 
@@ -253,9 +245,9 @@ class TreeBuilder:
 
         # Get candidate splits
         for feature_id in features:
-            for split_value in compute_split_values(X[:, feature_id]):
+            for split_value in compute_split_values(x[:, feature_id]):
                 splits_info.append(
-                    compute_split_info(self._split_criterion, X, y, feature_id, split_value, self._min_samples_leaf))
+                    compute_split_info(self._split_criterion, x, y, feature_id, split_value, self._min_samples_leaf))
 
         splits = []
         for split_info in splits_info:
