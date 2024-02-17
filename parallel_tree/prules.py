@@ -1,4 +1,8 @@
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
+import multiprocessing as mp
 import itertools
+from queue import Queue
 import time
 import pandas as pd
 import numpy as np
@@ -168,6 +172,31 @@ def make_prediction(data, target_factor):
     return pred
 
 def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, min_information_gain=1e-20, counter=0, max_categories=20):
+    tree = dict[str,list]()
+    processes = Queue()
+    working = Queue()
+    _,node,yes,no = train_tree_parallel("",data, y, target_factor, max_depth=max_depth, min_samples_split=min_samples_split, min_information_gain=min_information_gain, counter=counter, max_categories=max_categories)
+    tree.update({node:[]})
+    processes.put(yes)
+    processes.put(no)
+    while not processes.empty():
+        with ProcessPoolExecutor() as pool:
+            while not processes.empty():
+                working.put(pool.submit(train_tree_parallel,*processes.get()))
+        while not working.empty():
+            ##Crear el árbol
+            parent, node,yes,no, = working.get().result()
+            if yes:
+                processes.put(yes) 
+            if no:
+                processes.put(no)
+            if parent in tree.keys():
+                tree[parent].append(node)
+            else:
+                tree.update({parent:[]})
+    return tree
+
+def train_tree_parallel(parent,data, y, target_factor, max_depth=None, min_samples_split=None, min_information_gain=1e-20, counter=0, max_categories=20):
     '''
     Trains a Decission Tree
     data: Data to be used to train the Decission Tree
@@ -178,33 +207,12 @@ def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, m
     min_information_gain: minimum ig gain to consider a split to be valid.
     max_categories: maximum number of different values accepted for categorical values. High number of values will slow down learning process. R
     '''
-
-    # Check that max_categories is fulfilled
-    if counter == 0:
-        types = data.dtypes
-        check_columns = types[types == "object"].index
-        for column in check_columns:
-            var_length = len(data[column].value_counts())
-            if var_length > max_categories:
-                raise ValueError('The variable ' + column + ' has ' + str(var_length) + ' unique values, which is more than the accepted ones: ' + str(max_categories))
-
-    # Check for depth conditions
-    if max_depth is None:
-        depth_cond = True
-    else:
-        if counter < max_depth:
-            depth_cond = True
-        else:
-            depth_cond = False
-
-    # Check for sample conditions
-    if min_samples_split is None:
-        sample_cond = True
-    else:
-        if data.shape[0] > min_samples_split:
-            sample_cond = True
-        else:
-            sample_cond = False
+    with ThreadPoolExecutor(3) as pool:
+        pool.submit(fulfilled,data, counter, max_categories)
+        depth_thread = pool.submit(checking_depth,max_depth, counter)
+        sample_thread = pool.submit(checking_sample,data, min_samples_split)
+        depth_cond = depth_thread.result()
+        sample_cond = sample_thread.result()
 
     # Check for ig condition
     if depth_cond & sample_cond:
@@ -218,25 +226,48 @@ def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, m
             # Instantiate sub-tree
             split_type = "<=" if var_type else "in"
             question = "{} {} {}".format(var, split_type, val)
-            subtree = {question: []}
             # Find answers (recursion)
-            yes_answer = train_tree(left, y, target_factor, max_depth, min_samples_split, min_information_gain, counter)
-            no_answer = train_tree(right, y, target_factor, max_depth, min_samples_split, min_information_gain, counter)
-
-            if yes_answer == no_answer:
-                subtree = yes_answer
-            else:
-                subtree[question].append(yes_answer)
-                subtree[question].append(no_answer)
+            yes_answer = (question,left, y, target_factor, max_depth, min_samples_split, min_information_gain, counter)
+            no_answer = (question,right, y, target_factor, max_depth, min_samples_split, min_information_gain, counter)
 
         # If it doesn't match IG condition, make prediction
         else:
-            pred = make_prediction(data[y], target_factor)
-            return pred
+            question = make_prediction(data[y], target_factor)
+            yes_answer = ()
+            no_answer = ()
 
     # Drop dataset if doesn't match depth or sample conditions
     else:
-        pred = make_prediction(data[y], target_factor)
-        return pred
+        question = make_prediction(data[y], target_factor)
+        yes_answer = ()
+        no_answer = ()
+    return parent,question,yes_answer,no_answer
 
-    return subtree
+def checking_sample(data, min_samples_split):
+    if min_samples_split is None:
+        sample_cond = True
+    else:
+        if data.shape[0] > min_samples_split:
+            sample_cond = True
+        else:
+            sample_cond = False
+    return sample_cond
+
+def checking_depth(max_depth, counter):
+    if max_depth is None:
+        depth_cond = True
+    else:
+        if counter < max_depth:
+            depth_cond = True
+        else:
+            depth_cond = False
+    return depth_cond
+
+def fulfilled(data, counter, max_categories):
+    if counter == 0:
+        types = data.dtypes
+        check_columns = types[types == "object"].index
+        for column in check_columns:
+            var_length = len(data[column].value_counts())
+            if var_length > max_categories:
+                raise ValueError('The variable ' + column + ' has ' + str(var_length) + ' unique values, which is more than the accepted ones: ' + str(max_categories))

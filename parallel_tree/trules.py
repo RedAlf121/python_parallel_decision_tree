@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 import itertools
 import time
 import pandas as pd
@@ -178,33 +180,12 @@ def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, m
     min_information_gain: minimum ig gain to consider a split to be valid.
     max_categories: maximum number of different values accepted for categorical values. High number of values will slow down learning process. R
     '''
-
-    # Check that max_categories is fulfilled
-    if counter == 0:
-        types = data.dtypes
-        check_columns = types[types == "object"].index
-        for column in check_columns:
-            var_length = len(data[column].value_counts())
-            if var_length > max_categories:
-                raise ValueError('The variable ' + column + ' has ' + str(var_length) + ' unique values, which is more than the accepted ones: ' + str(max_categories))
-
-    # Check for depth conditions
-    if max_depth is None:
-        depth_cond = True
-    else:
-        if counter < max_depth:
-            depth_cond = True
-        else:
-            depth_cond = False
-
-    # Check for sample conditions
-    if min_samples_split is None:
-        sample_cond = True
-    else:
-        if data.shape[0] > min_samples_split:
-            sample_cond = True
-        else:
-            sample_cond = False
+    with ThreadPoolExecutor(3) as pool:
+        pool.submit(fulfilled,data, counter, max_categories)
+        depth_thread = pool.submit(checking_depth,max_depth, counter)
+        sample_thread = pool.submit(checking_sample,data, min_samples_split)
+        depth_cond = depth_thread.result()
+        sample_cond = sample_thread.result()
 
     # Check for ig condition
     if depth_cond & sample_cond:
@@ -219,6 +200,7 @@ def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, m
             split_type = "<=" if var_type else "in"
             question = "{} {} {}".format(var, split_type, val)
             subtree = {question: []}
+
             # Find answers (recursion)
             yes_answer = train_tree(left, y, target_factor, max_depth, min_samples_split, min_information_gain, counter)
             no_answer = train_tree(right, y, target_factor, max_depth, min_samples_split, min_information_gain, counter)
@@ -240,3 +222,32 @@ def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, m
         return pred
 
     return subtree
+
+def checking_sample(data, min_samples_split):
+    if min_samples_split is None:
+        sample_cond = True
+    else:
+        if data.shape[0] > min_samples_split:
+            sample_cond = True
+        else:
+            sample_cond = False
+    return sample_cond
+
+def checking_depth(max_depth, counter):
+    if max_depth is None:
+        depth_cond = True
+    else:
+        if counter < max_depth:
+            depth_cond = True
+        else:
+            depth_cond = False
+    return depth_cond
+
+def fulfilled(data, counter, max_categories):
+    if counter == 0:
+        types = data.dtypes
+        check_columns = types[types == "object"].index
+        for column in check_columns:
+            var_length = len(data[column].value_counts())
+            if var_length > max_categories:
+                raise ValueError('The variable ' + column + ' has ' + str(var_length) + ' unique values, which is more than the accepted ones: ' + str(max_categories))
