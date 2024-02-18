@@ -16,7 +16,7 @@ if __name__ == "__main__":
     
     #*Checking secuential tree
     start = t.time()
-    decisiones = passrules.train_tree(data,'class',True, max_depth,min_samples_split,min_information_gain,max_categories=30)
+    decisiones = prules.train_tree(data,'class',True, max_depth,min_samples_split,min_information_gain,max_categories=30)
     end = t.time()
     #print(decisiones)
     print(f"Tiempo transcurrido {end-start}")
