@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 import multiprocessing as mp
 import itertools
 from queue import Queue
@@ -271,3 +272,11 @@ def fulfilled(data, counter, max_categories):
             var_length = len(data[column].value_counts())
             if var_length > max_categories:
                 raise ValueError('The variable ' + column + ' has ' + str(var_length) + ' unique values, which is more than the accepted ones: ' + str(max_categories))
+
+def predict_parallel(root,tree,value):
+    pass
+
+def predict(root,tree,dataframe):
+    with mp.Pool(mp.cpu_count()) as pool:
+        values = pool.map(partial(predict_parallel,root,tree),dataframe)
+    return values
