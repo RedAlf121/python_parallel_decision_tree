@@ -240,3 +240,24 @@ def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, m
         return pred
 
     return subtree
+
+def check_condition(root: str, value: list,columns: list):
+    evaluation = root.split(" ")
+    compare = 0
+    for i in columns:
+        if i == evaluation[0]:
+            compare = columns.index(i)+1
+            break
+    return eval(f"\"{value[compare]}\" " if isinstance(value[compare],str) else f"{value[compare]} "+" ".join(evaluation[1:]))
+
+def predict_recursive(tree,columns,value):
+    label = ""
+    if not isinstance(tree, dict):
+        label = tree
+    else:
+        sons = list(tree.values())[0]
+        label = predict_recursive(sons[0],columns,value) if (check_condition(list(tree.keys())[0],value,columns)) else predict_recursive(sons[1],columns,value)
+    return label
+
+def predict(tree,dataframe):
+    return [predict_recursive(tree,dataframe.columns.tolist(),frame) for frame in dataframe.to_records().tolist()]

@@ -3,8 +3,11 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 import multiprocessing as mp
 import itertools
+import operator
 from queue import Queue
+import re
 import time
+from typing import Literal
 import pandas as pd
 import numpy as np
 def gini_impurity(y):
@@ -177,6 +180,7 @@ def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, m
     processes = Queue()
     working = Queue()
     _,node,yes,no = train_tree_parallel("",data, y, target_factor, max_depth=max_depth, min_samples_split=min_samples_split, min_information_gain=min_information_gain, counter=counter, max_categories=max_categories)
+    root = node
     tree.update({node:[]})
     processes.put(yes)
     processes.put(no)
@@ -195,7 +199,7 @@ def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, m
                 tree[parent].append(node)
             else:
                 tree.update({parent:[]})
-    return tree
+    return root,tree
 
 def train_tree_parallel(parent,data, y, target_factor, max_depth=None, min_samples_split=None, min_information_gain=1e-20, counter=0, max_categories=20):
     '''
@@ -273,10 +277,22 @@ def fulfilled(data, counter, max_categories):
             if var_length > max_categories:
                 raise ValueError('The variable ' + column + ' has ' + str(var_length) + ' unique values, which is more than the accepted ones: ' + str(max_categories))
 
-def predict_parallel(root,tree,value):
-    pass
+def predict_recursive(root,tree,columns,value):
+    label = ""
+    if tree.get(root,-1) == -1:
+        label = root
+    else:
+        label = predict_recursive(tree[root][0],tree,columns,value) if check_condition(root,value,columns) else predict_recursive(tree[root][1] if len(tree[root])>1 else None,tree,columns,value)
+    return label
+
+def check_condition(root: str, value: list,columns: list):
+    evaluation = root.split(" ")
+    compare = 0
+    for i in columns:
+        if i == evaluation[0]:
+            compare = columns.index(i)+1
+            break
+    return eval(f"\"{value[compare]}\" " if isinstance(value[compare],str) else f"{value[compare]} "+" ".join(evaluation[1:]))
 
 def predict(root,tree,dataframe):
-    with mp.Pool(mp.cpu_count()) as pool:
-        values = pool.map(partial(predict_parallel,root,tree),dataframe)
-    return values
+    return [predict_recursive(root,tree,dataframe.columns.tolist(),frame) for frame in dataframe.to_records().tolist()]
