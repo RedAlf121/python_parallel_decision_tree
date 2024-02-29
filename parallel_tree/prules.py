@@ -198,7 +198,7 @@ def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, m
             if parent in tree.keys():
                 tree[parent].append(node)
             else:
-                tree.update({parent:[]})
+                tree.update({parent:[node]})
     return root,tree
 
 def train_tree_parallel(parent,data, y, target_factor, max_depth=None, min_samples_split=None, min_information_gain=1e-20, counter=0, max_categories=20):
@@ -294,5 +294,6 @@ def check_condition(root: str, value: list,columns: list):
             break
     return eval(f"\"{value[compare]}\" " if isinstance(value[compare],str) else f"{value[compare]} "+" ".join(evaluation[1:]))
 
-def predict(root,tree,dataframe):
-    return [predict_recursive(root,tree,dataframe.columns.tolist(),frame) for frame in dataframe.to_records().tolist()]
+def predict(tree,dataframe):
+    root = tree[0]
+    return [predict_recursive(root,tree[1],dataframe.columns.tolist(),frame) for frame in dataframe.to_records().tolist()]
