@@ -63,27 +63,21 @@ def cross_validation_train(model, train, test):
 		start = time.time()
 		tree = model.train_tree(trainn,classname,True, max_depth,min_samples_split,min_information_gain,max_categories=30)
 		end = time.time()
-		score_auc = 0
 		predictions = model.predict(tree,testss)
 
 		real_y = np.append(real_y, y_test)
 		predicc_y = np.append(predicc_y, predictions)
 
 		score_recll = recall_score(y_test,predictions, average = 'macro')
-		score_presi = precision_score(y_test,predictions, average = 'macro')
 		score_acc = accuracy_score(y_test,predictions)
 
 		avg_recall = score_recll + avg_recall
-		avg_auc = score_auc + avg_auc
-		avg_presi = score_presi + avg_presi
 		avg_acc = score_acc + avg_acc
 		avg_time+=(end-start)
 		a+=1
 
 	avg_recall = avg_recall/len(train)
-	avg_auc = avg_auc/len(train)
 	avg_acc = avg_acc/len(train)
 	avg_time = avg_time/len(train)
-	avg_presi = avg_presi/len(train)
 	print("The final cross_val recall is", avg_recall, ", roc_auc is", avg_auc,", precision is",avg_presi,", accuracy is", avg_acc, "and time is", avg_time)
-	return avg_recall, avg_auc, avg_acc, avg_time, avg_presi
+	return avg_recall, avg_acc, avg_time
