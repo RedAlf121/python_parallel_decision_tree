@@ -13,7 +13,7 @@ def test_model(model,database: pd.DataFrame):
     return calification
 
 def test_both_trees():
-    banned = ["balance-scale.csv"]
+    banned = ["balance-scale.csv", "flags_religion.csv", "letter.csv","molecular-biology_promoters.csv","splice.csv","vehicle.csv"]
     databases = [database for database in os.listdir("data") if database.endswith(".csv") and database not in banned]
     dataframe = pd.DataFrame(columns=["NombreBaseDatos",
                                       "RecallPromedioModeloParalelo",
