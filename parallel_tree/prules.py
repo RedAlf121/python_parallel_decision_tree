@@ -1,4 +1,3 @@
-Alejandro CUJAE, [3/2/2024 2:31 PM]
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
@@ -131,10 +130,7 @@ def max_information_gain_split(x, y, func=entropy):
         return(best_ig,best_split,numeric_variable, True)
 
 def value_ig(x, y, func, numeric_variable, split_value, val):
-    m
-
-Alejandro CUJAE, [3/2/2024 2:31 PM]
-ask =   x < val if numeric_variable else x.isin(val)
+    mask =   x < val if numeric_variable else x.isin(val)
     val_ig = information_gain(y, mask, func)
     split_value.append(val)
     return val_ig
@@ -242,10 +238,7 @@ def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, m
                 tree.update({parent:[node]})
     return root,tree
 """
-def train_tree_parallel(paramet
-
-Alejandro CUJAE, [3/2/2024 2:31 PM]
-ers):
+def train_tree_parallel(parameters):
     parent,data, y, target_factor, max_depth, min_samples_split, min_information_gain, counter, max_categories = parameters
     '''
     Trains a Decission Tree
