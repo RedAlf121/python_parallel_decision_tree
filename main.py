@@ -25,13 +25,22 @@ def test_both_trees():
                                       "Aceleracion"
                                       ])
     speedup = 0
+    max_databases = 10 #testing with 10 databases
+    count_databases = max_databases 
     for database in databases:
-        print(database)
+        if count_databases == 0:
+            break
+        print(f"Database #{max_databases-count_databases+1}: {database}")
         loaded_data = pd.read_csv("data/"+database)
+        print(f"Probando modelo paralelo {database} #{max_databases-count_databases+1}")
         parallel_calification = test_model(prules,loaded_data)
+        print(f"Fin de probar modelo paralelo {database} #{max_databases-count_databases+1}")
+        print(f"Probando modelo secuencial {database} #{max_databases-count_databases+1}")
         serial_calification = test_model(rules,loaded_data)
+        print(f"Fin de probar modelo secuencial {database} #{max_databases-count_databases+1}")
         speedup = serial_calification[-1]/parallel_calification[-1]
         dataframe.loc[len(dataframe)] = database,*parallel_calification,*serial_calification,speedup
+        count_databases-=1
     dataframe.to_excel("tested.xlsx", index=False)
 
 
