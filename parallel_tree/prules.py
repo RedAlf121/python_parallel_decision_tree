@@ -1,3 +1,4 @@
+Alejandro CUJAE, [3/2/2024 2:31 PM]
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
@@ -49,7 +50,7 @@ def information_gain(y, mask, func=entropy):
     mask: split choice.
     func: function to be used to calculate Information Gain in case os classification.
     '''
-    a = sum(mask)
+    a = np.sum(mask)
     b = mask.shape[0] - a
     
     if(a == 0 or b ==0): 
@@ -57,27 +58,39 @@ def information_gain(y, mask, func=entropy):
     
     else:
         if y.dtypes != 'O':
-            ig = variance(y) - (a/(a+b)* variance(y[mask])) - (b/(a+b)*variance(y[-mask]))
+            
+            variance_y = variance(y)
+            variance_mask = variance(y[mask])
+            variance_neg_mask = variance(y[-mask])
+            ig = variance_y - (a/(a+b)* variance_mask) - (b/(a+b)*variance_neg_mask)
         else:
-            ig = func(y)-a/(a+b)*func(y[mask])-b/(a+b)*func(y[-mask])
+            function_y = func(y)
+            function_mask = func(y[mask])
+            function_neg_mask = func(y[-mask])
+            ig = function_y-(a/(a+b)*function_mask)-(b/(a+b)*function_neg_mask)
 
         return ig
     
-    import itertools
-
 def categorical_options(a):
     '''
     Creates all possible combinations from a Pandas Series.
     a: Pandas Series from where to get all possible combinations. 
     '''
     a = a.unique()
-
     opciones = []
-    for L in range(0, len(a)+1):
-        for subset in itertools.combinations(a, L):
-            subset = list(subset)
-            opciones.append(subset)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = []
+        for L in range(0, len(a)+1):
+            futures.append(executor.submit(iterate_combinations, a, L))
+        for future in futures:
+            opciones.extend(future.result())
     return opciones[1:-1]
+
+def iterate_combinations(a, L):
+    opciones = []
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        opciones = pool.map(lambda subset: list(subset),itertools.combinations(a, L))
+    return opciones
 
 def max_information_gain_split(x, y, func=entropy):
     '''
@@ -100,12 +113,10 @@ def max_information_gain_split(x, y, func=entropy):
 
     # Calculate ig for all values
     start = time.time()
-    for val in options:
-        mask =   x < val if numeric_variable else x.isin(val)
-        val_ig = information_gain(y, mask, func)
-        # Append results
-        ig.append(val_ig)
-        split_value.append(val)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        ig_value = pool.map(partial(value_ig,x, y, func, numeric_variable,split_value),options)
+        ig = list(ig_value)
+        
     end = time.time()
     print(f"Transcurrió: {end-start}")
     # Check if there are more than 1 results if not, return False
@@ -119,6 +130,15 @@ def max_information_gain_split(x, y, func=entropy):
         best_split = split_value[best_ig_index]
         return(best_ig,best_split,numeric_variable, True)
 
+def value_ig(x, y, func, numeric_variable, split_value, val):
+    m
+
+Alejandro CUJAE, [3/2/2024 2:31 PM]
+ask =   x < val if numeric_variable else x.isin(val)
+    val_ig = information_gain(y, mask, func)
+    split_value.append(val)
+    return val_ig
+
 def get_best_split(y, data):
   '''
   Given a data, select the best split and return the variable, the value, the variable type and the information gain.
@@ -126,15 +146,15 @@ def get_best_split(y, data):
   data: dataframe where to find the best split.
   '''
   masks = data.drop(y, axis= 1).apply(max_information_gain_split, y = data[y])
-  if sum(masks.loc[3,:]) == 0:
+  if np.sum(masks.loc[3,:]) == 0:
     return(None, None, None, None)
 
   else:
     # Get only masks that can be splitted
     masks = masks.loc[:,masks.loc[3,:]]
-
     # Get the results for split with highest IG
     split_variable = masks.iloc[0].astype(np.float32).idxmax()
+
     #split_valid = masks[split_variable][]
     split_value = masks[split_variable][1] 
     split_ig = masks[split_variable][0]
@@ -174,7 +194,28 @@ def make_prediction(data, target_factor):
         pred = data.mean()
 
     return pred
+def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, min_information_gain=1e-20, counter=0, max_categories=20):
+    tree = dict[str, list]()
+    processes = Queue()
+    _, node, yes, no = train_tree_parallel(("", data, y, target_factor, max_depth, min_samples_split, min_information_gain, counter, max_categories))
+    root = node
+    tree.update({node: []})
+    processes.put(yes)
+    processes.put(no)
+    with ProcessPoolExecutor() as pool:
+        while not processes.empty():
+            working = pool.map(train_tree_parallel, [processes.get() for _ in range(processes.qsize())])
+            for parent, node, yes, no in working:
+                if yes:
+                    processes.put(yes)
+                    processes.put(no)
+                if parent in tree.keys():
+                    tree[parent].append(node)
+                else:
+                    tree.update({parent: [node]})
+    return root, tree
 
+"""
 def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, min_information_gain=1e-20, counter=0, max_categories=20):
     tree = dict[str,list]()
     processes = Queue()
@@ -186,22 +227,26 @@ def train_tree(data, y, target_factor, max_depth=None, min_samples_split=None, m
     processes.put(no)
     while not processes.empty():
         with ProcessPoolExecutor() as pool:
-            while not processes.empty():
-                working.put(pool.submit(train_tree_parallel,*processes.get()))
+            working = pool.map(train_tree_parallel,processes)
+            #while not processes.empty():
+            #    working.put(pool.submit(train_tree_parallel,*processes.get()))
         while not working.empty():
             ##Crear el árbol
             parent, node,yes,no, = working.get().result()
             if yes:
                 processes.put(yes) 
-            if no:
                 processes.put(no)
             if parent in tree.keys():
                 tree[parent].append(node)
             else:
                 tree.update({parent:[node]})
     return root,tree
+"""
+def train_tree_parallel(paramet
 
-def train_tree_parallel(parent,data, y, target_factor, max_depth=None, min_samples_split=None, min_information_gain=1e-20, counter=0, max_categories=20):
+Alejandro CUJAE, [3/2/2024 2:31 PM]
+ers):
+    parent,data, y, target_factor, max_depth, min_samples_split, min_information_gain, counter, max_categories = parameters
     '''
     Trains a Decission Tree
     data: Data to be used to train the Decission Tree
@@ -232,8 +277,8 @@ def train_tree_parallel(parent,data, y, target_factor, max_depth=None, min_sampl
             split_type = "<=" if var_type else "in"
             question = "{} {} {}".format(var, split_type, val)
             # Find answers (recursion)
-            yes_answer = (question,left, y, target_factor, max_depth, min_samples_split, min_information_gain, counter)
-            no_answer = (question,right, y, target_factor, max_depth, min_samples_split, min_information_gain, counter)
+            yes_answer = (question,left, y, target_factor, max_depth, min_samples_split, min_information_gain, counter, max_categories)
+            no_answer = (question,right, y, target_factor, max_depth, min_samples_split, min_information_gain, counter, max_categories)
 
         # If it doesn't match IG condition, make prediction
         else:
